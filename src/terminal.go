@@ -189,6 +189,7 @@ type Terminal struct {
 	theme              *tui.ColorTheme
 	tui                tui.Renderer
 	executing          *util.AtomicBool
+	tee                string
 }
 
 type selectedItem struct {
@@ -576,7 +577,9 @@ func NewTerminal(opts *Options, eventBox *util.EventBox) *Terminal {
 		killChan:           make(chan int),
 		tui:                renderer,
 		initFunc:           func() { renderer.Init() },
-		executing:          util.NewAtomicBool(false)}
+		executing:          util.NewAtomicBool(false),
+		tee:                opts.Tee,
+	}
 	t.prompt, t.promptLen = t.parsePrompt(opts.Prompt)
 	t.pointer, t.pointerLen = t.processTabs([]rune(opts.Pointer), 0)
 	t.marker, t.markerLen = t.processTabs([]rune(opts.Marker), 0)
@@ -688,6 +691,28 @@ func (t *Terminal) UpdateList(merger *Merger, reset bool) {
 }
 
 func (t *Terminal) output() bool {
+	tee := func(result string) {
+		if t.tee == "" {
+			return
+		}
+		file, open_err := os.OpenFile(t.tee, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o600)
+		if open_err != nil {
+			errorExit(fmt.Sprintf("error on opening the tee file: %s", open_err))
+		}
+		defer func() {
+			if close_err := file.Close(); close_err != nil {
+				errorExit(fmt.Sprintf("error on closing the tee file: %s", close_err))
+			}
+		}()
+		write_n, write_err := file.WriteString(result)
+		if write_err != nil {
+			errorExit(fmt.Sprintf("error on writing to the tee file: %s", write_err))
+		}
+		if write_n != len(result) {
+			errorExit("incomplete write to the tee file")
+		}
+	}
+
 	if t.printQuery {
 		t.printer(string(t.input))
 	}
@@ -698,7 +723,9 @@ func (t *Terminal) output() bool {
 	if !found {
 		current := t.currentItem()
 		if current != nil {
-			t.printer(current.AsString(t.ansi))
+			result := current.AsString(t.ansi)
+			t.printer(result)
+			tee(result)
 			found = true
 		}
 	} else {
