@@ -101,6 +101,8 @@ const usage = `usage: fzf [options]
     --read0               Read input delimited by ASCII NUL characters
     --print0              Print output delimited by ASCII NUL characters
     --sync                Synchronous search for multi-staged filtering
+    --output-file=STR     Save output into file
+    --input-file=STR      Read source from file
     --version             Display version information and exit
 
   Environment variables
@@ -250,6 +252,8 @@ type Options struct {
 	Tabstop     int
 	ClearOnExit bool
 	Version     bool
+	Outfile     string
+	Infile      string
 }
 
 func defaultPreviewOpts(command string) previewOpts {
@@ -313,7 +317,10 @@ func defaultOptions() *Options {
 		Unicode:     true,
 		Tabstop:     8,
 		ClearOnExit: true,
-		Version:     false}
+		Version:     false,
+		Outfile:     "",
+		Infile:      "",
+	}
 }
 
 func help(code int) {
@@ -531,6 +538,8 @@ func parseKeyChords(str string, message string) map[tui.Event]string {
 			add(tui.Change)
 		case "backward-eof":
 			add(tui.BackwardEOF)
+		case "char":
+			add(tui.Char)
 		case "alt-enter", "alt-return":
 			chords[tui.CtrlAltKey('m')] = key
 		case "alt-space":
@@ -1025,6 +1034,8 @@ func parseKeymap(keymap map[tui.Event][]*action, str string) {
 				appendAction(actDisableSearch)
 			case "put":
 				if key.Type == tui.Rune && unicode.IsGraphic(key.Char) {
+					appendAction(actRune)
+				} else if key.Type == tui.Char {
 					appendAction(actRune)
 				} else {
 					errorExit("unable to put non-printable character: " + pair[0])
@@ -1559,6 +1570,10 @@ func parseOptions(opts *Options, allArgs []string) {
 			opts.ClearOnExit = false
 		case "--version":
 			opts.Version = true
+		case "--output-file":
+			opts.Outfile = nextString(allArgs, &i, "output file required")
+		case "--input-file":
+			opts.Infile = nextString(allArgs, &i, "input file required")
 		case "--":
 			// Ignored
 		default:
@@ -1637,6 +1652,10 @@ func parseOptions(opts *Options, allArgs []string) {
 			} else if match, value := optString(arg, "--jump-labels="); match {
 				opts.JumpLabels = value
 				validateJumpLabels = true
+			} else if match, value := optString(arg, "--output-file="); match {
+				opts.Outfile = value
+			} else if match, value := optString(arg, "--input-file="); match {
+				opts.Infile = value
 			} else {
 				errorExit("unknown option: " + arg)
 			}

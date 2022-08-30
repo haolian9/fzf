@@ -116,7 +116,7 @@ func Run(opts *Options, version string, revision string) {
 	if !streamingFilter {
 		reader = NewReader(func(data []byte) bool {
 			return chunkList.Push(data)
-		}, eventBox, opts.ReadZero, opts.Filter == nil)
+		}, eventBox, opts.ReadZero, opts.Filter == nil, opts.Infile)
 		go reader.ReadSource()
 	}
 
@@ -162,7 +162,7 @@ func Run(opts *Options, version string, revision string) {
 						}
 					}
 					return false
-				}, eventBox, opts.ReadZero, false)
+				}, eventBox, opts.ReadZero, false, opts.Infile)
 			reader.ReadSource()
 		} else {
 			eventBox.Unwatch(EvtReadNew)
@@ -194,6 +194,7 @@ func Run(opts *Options, version string, revision string) {
 
 	// Terminal I/O
 	terminal := NewTerminal(opts, eventBox)
+	defer terminal.Deinit()
 	deferred := opts.Select1 || opts.Exit0
 	go terminal.Loop()
 	if !deferred {

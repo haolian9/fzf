@@ -189,6 +189,7 @@ type Terminal struct {
 	theme              *tui.ColorTheme
 	tui                tui.Renderer
 	executing          *util.AtomicBool
+	outFile            *os.File
 }
 
 type selectedItem struct {
@@ -556,7 +557,7 @@ func NewTerminal(opts *Options, eventBox *util.EventBox) *Terminal {
 		failed:             nil,
 		jumping:            jumpDisabled,
 		jumpLabels:         opts.JumpLabels,
-		printer:            opts.Printer,
+		printer:            nil,
 		printsep:           opts.PrintSep,
 		merger:             EmptyMerger,
 		selected:           make(map[int32]selectedItem),
@@ -576,13 +577,31 @@ func NewTerminal(opts *Options, eventBox *util.EventBox) *Terminal {
 		killChan:           make(chan int),
 		tui:                renderer,
 		initFunc:           func() { renderer.Init() },
-		executing:          util.NewAtomicBool(false)}
+		executing:          util.NewAtomicBool(false),
+		outFile:            nil,
+	}
 	t.prompt, t.promptLen = t.parsePrompt(opts.Prompt)
 	t.pointer, t.pointerLen = t.processTabs([]rune(opts.Pointer), 0)
 	t.marker, t.markerLen = t.processTabs([]rune(opts.Marker), 0)
 	// Pre-calculated empty pointer and marker signs
 	t.pointerEmpty = strings.Repeat(" ", t.pointerLen)
 	t.markerEmpty = strings.Repeat(" ", t.markerLen)
+
+	if opts.Outfile != "" {
+		file, open_err := os.OpenFile(opts.Outfile, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o600)
+		if open_err != nil {
+			errorExit(fmt.Sprintf("error on opening the output file: %s", open_err))
+		}
+		t.outFile = file
+		t.printer = func(str string) {
+			opts.Printer(str)
+			if _, err := fmt.Fprint(t.outFile, str, opts.PrintSep); err != nil {
+				panic(err)
+			}
+		}
+	} else {
+		t.printer = opts.Printer
+	}
 
 	return &t
 }
@@ -698,7 +717,8 @@ func (t *Terminal) output() bool {
 	if !found {
 		current := t.currentItem()
 		if current != nil {
-			t.printer(current.AsString(t.ansi))
+			result := current.AsString(t.ansi)
+			t.printer(result)
 			found = true
 		}
 	} else {
@@ -2820,6 +2840,11 @@ func (t *Terminal) Loop() {
 			actions := t.keymap[event.Comparable()]
 			if len(actions) == 0 && event.Type == tui.Rune {
 				doAction(&action{t: actRune})
+				if onChars, prs := t.keymap[tui.Char.AsEvent()]; prs {
+					if !doActions(onChars) {
+						continue
+					}
+				}
 			} else if !doActions(actions) {
 				continue
 			}
@@ -2934,4 +2959,12 @@ func (t *Terminal) maxItems() int {
 		max++
 	}
 	return util.Max(max, 0)
+}
+
+func (t *Terminal) Deinit() {
+	if t.outFile != nil {
+		if err := t.outFile.Close(); err != nil {
+			panic(err)
+		}
+	}
 }

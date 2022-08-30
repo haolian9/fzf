@@ -350,6 +350,13 @@ func (r *LightRenderer) escSequence(sz *int) Event {
 		if len(r.buffer) < 3 {
 			return Event{Invalid, 0, nil}
 		}
+
+		// try CSIu first
+		// sz has no effects here, so leave it alone
+		if ev := parseCSIuSequence(r.buffer); ev != nil {
+			return *ev
+		}
+
 		*sz = 3
 		switch r.buffer[2] {
 		case 'D':
@@ -511,6 +518,7 @@ func (r *LightRenderer) escSequence(sz *int) Event {
 			} // r.buffer[2]
 		} // r.buffer[2]
 	} // r.buffer[1]
+
 	rest := bytes.NewBuffer(r.buffer[1:])
 	c, size, err := rest.ReadRune()
 	if err == nil {
@@ -518,6 +526,46 @@ func (r *LightRenderer) escSequence(sz *int) Event {
 		return AltKey(c)
 	}
 	return Event{Invalid, 0, nil}
+}
+
+// incomplete parser for CSIu
+// recognize ctrl+? currently
+// pattern: \x1b[\d+;[35]u
+// ref: http://www.leonerd.org.uk/hacks/fixterms/
+func parseCSIuSequence(buffer []byte) *Event {
+	if buffer[0] != '\x1b' {
+		return nil
+	}
+	if buffer[1] != '[' {
+		return nil
+	}
+	high := len(buffer) - 1
+	if buffer[high] != 'u' {
+		return nil
+	}
+	if buffer[high-2] != ';' {
+		return nil
+	}
+	// tui does not define too much alt+?
+	// so only ctrl+? is supported
+	if buffer[high-1] != '5' {
+		return nil
+	}
+
+	keycode, err := strconv.Atoi(string(buffer[2 : high-2]))
+	if err != nil {
+		return nil
+	}
+	switch keycode {
+	case ' ':
+		return &Event{CtrlSpace, 0, nil}
+	case '/':
+		return &Event{CtrlSlash, 0, nil}
+	case '[':
+		return &Event{ESC, 0, nil}
+	}
+
+	return nil
 }
 
 // https://invisible-island.net/xterm/ctlseqs/ctlseqs.html#h2-Mouse-Tracking
