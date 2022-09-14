@@ -3,6 +3,7 @@ package fzf
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -27,11 +28,12 @@ type Reader struct {
 	command  *string
 	killed   bool
 	wait     bool
+	infile   string
 }
 
 // NewReader returns new Reader object
-func NewReader(pusher func([]byte) bool, eventBox *util.EventBox, delimNil bool, wait bool) *Reader {
-	return &Reader{pusher, eventBox, delimNil, int32(EvtReady), make(chan bool, 1), sync.Mutex{}, nil, nil, false, wait}
+func NewReader(pusher func([]byte) bool, eventBox *util.EventBox, delimNil bool, wait bool, infile string) *Reader {
+	return &Reader{pusher, eventBox, delimNil, int32(EvtReady), make(chan bool, 1), sync.Mutex{}, nil, nil, false, wait, infile}
 }
 
 func (r *Reader) startEventPoller() {
@@ -97,7 +99,10 @@ func (r *Reader) restart(command string) {
 func (r *Reader) ReadSource() {
 	r.startEventPoller()
 	var success bool
-	if util.IsTty() {
+
+	if r.infile != "" {
+		success = r.readFromFile()
+	} else if util.IsTty() {
 		// The default command for *nix requires bash
 		shell := "bash"
 		cmd := os.Getenv("FZF_DEFAULT_COMMAND")
@@ -198,4 +203,20 @@ func (r *Reader) readFromCommand(shell *string, command string) bool {
 	}
 	r.feed(out)
 	return r.exec.Wait() == nil
+}
+
+func (r *Reader) readFromFile() bool {
+	file, open_err := os.OpenFile(r.infile, os.O_RDONLY, 0o400)
+	if open_err != nil {
+		errorExit(fmt.Sprintf("error on opening the input file: %s", open_err))
+	}
+	defer func() {
+		if close_err := file.Close(); close_err != nil {
+			errorExit(fmt.Sprintf("error on closing the input file: %s", close_err))
+		}
+	}()
+
+	r.feed(file)
+
+	return true
 }
