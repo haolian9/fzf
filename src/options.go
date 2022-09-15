@@ -101,8 +101,8 @@ const usage = `usage: fzf [options]
     --read0               Read input delimited by ASCII NUL characters
     --print0              Print output delimited by ASCII NUL characters
     --sync                Synchronous search for multi-staged filtering
-    -t, --tee=STR         Also save output into file
-    -r, --input-file=STR  Read source from file
+    --tee=STR             Also save output into file
+    --input-file=STR      Read source from file
     --version             Display version information and exit
 
   Environment variables
@@ -1566,9 +1566,9 @@ func parseOptions(opts *Options, allArgs []string) {
 			opts.ClearOnExit = false
 		case "--version":
 			opts.Version = true
-		case "-t", "--tee":
+		case "--tee":
 			opts.Tee = nextString(allArgs, &i, "tee string required")
-		case "-r", "--input-file":
+		case "--input-file":
 			opts.Infile = nextString(allArgs, &i, "input file required")
 		case "--":
 			// Ignored
