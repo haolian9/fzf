@@ -190,6 +190,7 @@ type Terminal struct {
 	tui                tui.Renderer
 	executing          *util.AtomicBool
 	tee                string
+	queryAsPlaceholder bool
 }
 
 type selectedItem struct {
@@ -579,6 +580,7 @@ func NewTerminal(opts *Options, eventBox *util.EventBox) *Terminal {
 		initFunc:           func() { renderer.Init() },
 		executing:          util.NewAtomicBool(false),
 		tee:                opts.Tee,
+		queryAsPlaceholder: opts.QueryAsPlaceholder,
 	}
 	t.prompt, t.promptLen = t.parsePrompt(opts.Prompt)
 	t.pointer, t.pointerLen = t.processTabs([]rune(opts.Pointer), 0)
@@ -2318,6 +2320,7 @@ func (t *Terminal) Loop() {
 	}()
 
 	looping := true
+	clearedPlaceholder := !t.queryAsPlaceholder || len(t.input) == 0
 	for looping {
 		var newCommand *string
 		changed := false
@@ -2325,6 +2328,13 @@ func (t *Terminal) Loop() {
 		queryChanged := false
 
 		event := t.tui.GetChar()
+
+		if !clearedPlaceholder && event.Type == tui.Rune {
+			// todo: c-u?
+			t.input = t.input[len(t.input):]
+			t.cx = 0
+			clearedPlaceholder = true
+		}
 
 		t.mutex.Lock()
 		previousInput := t.input

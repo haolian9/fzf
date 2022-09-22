@@ -254,6 +254,7 @@ type Options struct {
 	Version     bool
 	Tee         string
 	Infile      string
+	QueryAsPlaceholder bool
 }
 
 func defaultPreviewOpts(command string) previewOpts {
@@ -320,6 +321,7 @@ func defaultOptions() *Options {
 		Version:     false,
 		Tee:         "",
 		Infile:      "",
+		QueryAsPlaceholder: false,
 	}
 }
 
@@ -1574,6 +1576,8 @@ func parseOptions(opts *Options, allArgs []string) {
 			opts.Tee = nextString(allArgs, &i, "tee string required")
 		case "--input-file":
 			opts.Infile = nextString(allArgs, &i, "input file required")
+		case "--query-as-placeholder":
+			opts.QueryAsPlaceholder = true
 		case "--":
 			// Ignored
 		default:
