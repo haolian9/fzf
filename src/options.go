@@ -538,6 +538,8 @@ func parseKeyChords(str string, message string) map[tui.Event]string {
 			add(tui.Change)
 		case "backward-eof":
 			add(tui.BackwardEOF)
+		case "char":
+			add(tui.Char)
 		case "alt-enter", "alt-return":
 			chords[tui.CtrlAltKey('m')] = key
 		case "alt-space":
@@ -1032,6 +1034,8 @@ func parseKeymap(keymap map[tui.Event][]*action, str string) {
 				appendAction(actDisableSearch)
 			case "put":
 				if key.Type == tui.Rune && unicode.IsGraphic(key.Char) {
+					appendAction(actRune)
+				} else if key.Type == tui.Char {
 					appendAction(actRune)
 				} else {
 					errorExit("unable to put non-printable character: " + pair[0])

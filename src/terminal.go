@@ -2847,6 +2847,11 @@ func (t *Terminal) Loop() {
 			actions := t.keymap[event.Comparable()]
 			if len(actions) == 0 && event.Type == tui.Rune {
 				doAction(&action{t: actRune})
+				if onChars, prs := t.keymap[tui.Char.AsEvent()]; prs {
+					if !doActions(onChars) {
+						continue
+					}
+				}
 			} else if !doActions(actions) {
 				continue
 			}
